@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Access Control — IB-TECH ePINs Admin</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="index.html"><img class="brand-mark" src="images/branding/ib-tech-epins-mark.webp" alt="IB-TECH ePINs logo" /><span>IB-TECH ePINs<small>Admin Panel</small></span></a>
+    <nav class="side-nav">
+      <a href="admin-dashboard.html"><span class="ic">▣</span> Overview</a>
+      <a href="admin-stock.html"><span class="ic">＋</span> Stock</a>
+      <a href="admin-users.html"><span class="ic">◍</span> Users</a>
+      <a href="admin-access.html" class="active"><span class="ic">⚿</span> Access Control</a>
+      <a href="admin-transactions.html"><span class="ic">≡</span> Transactions</a>
+      <a href="index.html"><span class="ic">↩</span> View site</a>
+      <a href="#" id="logoutLink"><span class="ic">⏻</span> Logout</a>
+    </nav>
+    <div class="side-foot">ADMIN PANEL · v1.0.0</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Access Control</h1>
+      <div class="user-chip">
+        <span class="av" id="userInitial">?</span>
+        <div>
+          <div style="font-weight:600;font-size:.88rem;" id="userName">—</div>
+          <div style="font-size:.75rem;color:var(--ink-soft);">Administrator</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Access Control</h2>
+          <span class="hint" id="accessNote">—</span>
+        </div>
+        <div class="panel-body pad-0">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Access level</th><th>Action</th></tr></thead>
+            <tbody id="accessBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  let admin = null;
+  let users = [];
+
+  function renderTopbar() {
+    const avEl = document.getElementById("userInitial");
+    if (admin.avatar) {
+      avEl.textContent = "";
+      avEl.style.backgroundImage = `url(${admin.avatar})`;
+      avEl.style.backgroundSize = "cover";
+      avEl.style.backgroundPosition = "center";
+    } else {
+      avEl.style.backgroundImage = "none";
+      avEl.textContent = admin.name.charAt(0).toUpperCase();
+    }
+    document.getElementById("userName").textContent = admin.name;
+  }
+
+  function renderAccessTable() {
+    const amSuper = IBT.isSuperAdmin(admin);
+    document.getElementById("accessNote").textContent = amSuper
+      ? "You can grant or revoke admin access below."
+      : "Only the super admin can change access levels.";
+
+    const body = document.getElementById("accessBody");
+    body.innerHTML = users.map(u => {
+      const roleLabel = u.role === "superadmin" ? "Super Admin" : (u.role === "admin" ? "Admin" : "User");
+      const pillClass = u.role === "user" ? "" : "ok";
+      let action = `<span class="hint">—</span>`;
+      if (u.id === admin.id) {
+        action = `<span class="hint">This is you</span>`;
+      } else if (amSuper) {
+        if (u.role === "user") action = `<button class="btn btn-outline btn-sm" data-grant="${u.id}">Grant admin</button>`;
+        else if (u.role === "admin") action = `<button class="btn btn-danger btn-sm" data-revoke="${u.id}">Revoke admin</button>`;
+        else action = `<span class="hint">Super admin</span>`;
+      }
+      return `<tr><td>${IBT.escapeHTML(u.name)}</td><td>${IBT.escapeHTML(u.email || u.phone || "—")}</td><td><span class="tag-pill ${pillClass}">${roleLabel}</span></td><td>${action}</td></tr>`;
+    }).join("");
+  }
+
+  document.getElementById("accessBody").addEventListener("click", async (e) => {
+    const grantId = e.target.dataset.grant;
+    const revokeId = e.target.dataset.revoke;
+    if (grantId) {
+      const result = await IBT.setUserRole(grantId, IBT.ROLES.ADMIN);
+      if (!result.ok) { IBT.toast(result.error, true); return; }
+      IBT.toast(`${IBT.escapeHTML(result.user.name)} now has admin access.`);
+      await refreshAll();
+    }
+    if (revokeId) {
+      const result = await IBT.setUserRole(revokeId, IBT.ROLES.USER);
+      if (!result.ok) { IBT.toast(result.error, true); return; }
+      IBT.toast(`${IBT.escapeHTML(result.user.name)}'s admin access was revoked.`);
+      await refreshAll();
+    }
+  });
+
+  async function refreshAll() {
+    users = await IBT.adminUsers();
+    renderAccessTable();
+  }
+
+  document.getElementById("logoutLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await IBT.logout();
+    window.location.href = "login.html";
+  });
+
+  (async () => {
+    admin = await IBT.requireAuth({ admin: true });
+    if (!admin) return;
+    renderTopbar();
+    await refreshAll();
+  })();
+</script>
+<script src="js/site.js" defer></script>
+</body>
+</html>

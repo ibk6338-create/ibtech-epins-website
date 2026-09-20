@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Print Cards — IB-TECH ePINs</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="index.html"><img class="brand-mark" src="images/branding/ib-tech-epins-mark.webp" alt="IB-TECH ePINs logo" /><span>IB-TECH ePINs</span></a>
+    <nav class="side-nav">
+      <a href="user-dashboard.html" class="active"><span class="ic">▣</span> Print Cards</a>
+      <a href="transactions.html"><span class="ic">≡</span> Transactions</a>
+      <a href="wallet.html"><span class="ic">◎</span> Wallet</a>
+      <a href="index.html"><span class="ic">↩</span> View site</a>
+      <a href="#" id="logoutLink"><span class="ic">⏻</span> Logout</a>
+    </nav>
+    <div class="side-foot">USER PORTAL · v1.0.0</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Print Recharge Cards</h1>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="wallet-pill">
+          <span class="dot">₦</span>
+          <span><small>Wallet balance</small><b id="walletValue">₦0</b></span>
+        </div>
+        <div class="user-chip">
+          <span class="av" id="userInitial">?</span>
+          <div>
+            <div style="font-weight:600;font-size:.88rem;" id="userName">—</div>
+            <div style="font-size:.75rem;color:var(--ink-soft);" id="userBiz">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">Wallet balance</div>
+          <div class="value" id="statWallet">₦0</div>
+          <div class="sub">Available to spend</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Cards printed</div>
+          <div class="value" id="statCount">0</div>
+          <div class="sub">All-time, this account</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Total spent</div>
+          <div class="value" id="statSpent">₦0</div>
+          <div class="sub">On printed e-pins</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Last print</div>
+          <div class="value" id="statLast" style="font-size:1.05rem;">—</div>
+          <div class="sub">Most recent batch</div>
+        </div>
+      </div>
+
+      <div class="panel" id="print">
+        <div class="panel-head">
+          <h2>Print a new batch</h2>
+          <span class="hint" id="stockHint">—</span>
+        </div>
+        <div class="panel-body">
+          <p class="hint" style="margin-top:0;">Choose a network and denomination — every print debits your wallet automatically at reseller rate.</p>
+
+          <div class="hint" style="margin-bottom:6px;font-weight:600;color:var(--ink);">Network</div>
+          <div class="choice-row" id="networkChoices"></div>
+
+          <div class="hint" style="margin-bottom:6px;font-weight:600;color:var(--ink);">Denomination</div>
+          <div class="choice-row" id="denomChoices"></div>
+
+          <div class="field" style="max-width:160px;">
+            <label for="qty">Quantity</label>
+            <input type="number" id="qty" value="1" min="1" max="50" />
+          </div>
+
+          <div class="flex-between" style="margin:14px 0;padding:12px 14px;background:var(--paper-dim);border-radius:8px;">
+            <span class="hint">Estimated cost</span>
+            <b class="mono" id="estCost">₦0</b>
+          </div>
+
+          <div id="printAlert" class="alert alert-error"></div>
+
+          <button class="btn btn-primary btn-block" id="printBtn">Print cards</button>
+
+          <div style="margin-top:26px;">
+            <div class="panel-head" style="padding:0 0 12px;border:none;"><h2 style="font-size:.95rem;">Recently printed</h2></div>
+
+            <div class="export-toolbar" id="exportToolbar" style="display:none;">
+              <button class="btn btn-outline" id="sendPrinterBtn"><span class="ic">🖨</span>Send to printer</button>
+              <button class="btn btn-outline" id="downloadPdfBtn"><span class="ic">⬇</span>Download as PDF</button>
+              <button class="btn btn-outline" id="saveImageBtn"><span class="ic">🖼</span>Save as image</button>
+              <span class="export-hint">Exports this batch only — the pins shown below.</span>
+            </div>
+
+            <div id="printableArea">
+              <div class="card-grid" id="recentCards">
+                <p class="hint">Nothing printed yet this session.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/print-export.js"></script>
+<script>
+  let user = null;
+  let stock = {};
+  let selectedNetwork = IBT.NETWORKS[0];
+  let selectedDenom = IBT.DENOMS[0];
+  let lastBatchLabel = "";
+
+  function renderHeader() {
+    document.getElementById("walletValue").textContent = IBT.fmtNaira(user.wallet);
+    document.getElementById("statWallet").textContent = IBT.fmtNaira(user.wallet);
+    const avEl = document.getElementById("userInitial");
+    if (user.avatar) {
+      avEl.textContent = "";
+      avEl.style.backgroundImage = `url(${user.avatar})`;
+      avEl.style.backgroundSize = "cover";
+      avEl.style.backgroundPosition = "center";
+    } else {
+      avEl.style.backgroundImage = "none";
+      avEl.textContent = user.name.charAt(0).toUpperCase();
+    }
+    document.getElementById("userName").textContent = user.name;
+    document.getElementById("userBiz").textContent = user.business;
+  }
+
+  function renderChoices() {
+    const netWrap = document.getElementById("networkChoices");
+    netWrap.innerHTML = "";
+    IBT.NETWORKS.forEach(net => {
+      const b = document.createElement("button");
+      b.className = "choice" + (net === selectedNetwork ? " on" : "");
+      const logo = IBT.NETWORK_LOGOS && IBT.NETWORK_LOGOS[net];
+      b.innerHTML = (logo ? `<img class="net-logo" src="${logo}" alt="${net} logo" />` : "") + net;
+      b.onclick = () => { selectedNetwork = net; renderChoices(); renderStockHint(); };
+      netWrap.appendChild(b);
+    });
+
+    const denomWrap = document.getElementById("denomChoices");
+    denomWrap.innerHTML = "";
+    IBT.DENOMS.forEach(d => {
+      const b = document.createElement("button");
+      b.className = "choice choice-denom" + (d === selectedDenom ? " on" : "");
+      b.textContent = "₦" + d;
+      b.onclick = () => { selectedDenom = d; renderChoices(); renderStockHint(); };
+      denomWrap.appendChild(b);
+    });
+    renderEstimate();
+  }
+
+  function renderStockHint() {
+    const left = IBT.stockCount(stock, selectedNetwork, selectedDenom);
+    document.getElementById("stockHint").textContent = `${left} ${selectedNetwork} ₦${selectedDenom} pin(s) in stock`;
+    renderEstimate();
+  }
+
+  function renderEstimate() {
+    const qty = Math.max(1, Number(document.getElementById("qty").value || 1));
+    document.getElementById("estCost").textContent = IBT.fmtNaira(IBT.unitPrice(selectedDenom) * qty);
+  }
+  document.getElementById("qty").addEventListener("input", renderEstimate);
+
+  function renderStats(txs) {
+    document.getElementById("statCount").textContent = txs.reduce((s, t) => s + (t.qty || 0), 0);
+    document.getElementById("statSpent").textContent = IBT.fmtNaira(txs.reduce((s, t) => s + (t.total || 0), 0));
+    const lastPrint = txs.find(t => t.type === "print");
+    document.getElementById("statLast").textContent = lastPrint ? `${lastPrint.network} ₦${lastPrint.denom} × ${lastPrint.qty}` : "—";
+  }
+
+  function renderRecentCards(cards, network, denom) {
+    const wrap = document.getElementById("recentCards");
+    if (!cards || !cards.length) return;
+    const logo = IBT.NETWORK_LOGOS && IBT.NETWORK_LOGOS[network];
+    const netClass = network ? `print-card--${network.toLowerCase()}` : "";
+    wrap.innerHTML = cards.map(c => `
+      <div class="print-card ${netClass}" data-watermark="${network}">
+        <div class="print-card__top"><span>${logo ? `<img class="net-logo-sm" src="${logo}" alt="${network} logo" />` : ""}${network}</span><span>₦${denom}</span></div>
+        <div class="print-card__pin">${IBT.escapeHTML(c.pin)}</div>
+        <div class="print-card__serial">Serial ${IBT.escapeHTML(c.serial)}</div>
+      </div>
+    `).join("");
+    lastBatchLabel = `IB-TECH ePINs — ${network} ₦${denom} × ${cards.length}`;
+    document.getElementById("exportToolbar").style.display = "flex";
+  }
+
+  document.getElementById("sendPrinterBtn").addEventListener("click", () => {
+    IBTPrint.printArea("printableArea", lastBatchLabel);
+  });
+  document.getElementById("downloadPdfBtn").addEventListener("click", () => {
+    IBTPrint.downloadPdf("printableArea", lastBatchLabel, `ibtech-epins-${Date.now()}`);
+  });
+  document.getElementById("saveImageBtn").addEventListener("click", () => {
+    IBTPrint.saveAsImage("printableArea", lastBatchLabel, `ibtech-epins-${Date.now()}`);
+  });
+
+  async function refreshAll() {
+    const [newStock, txs] = await Promise.all([IBT.getStock(), IBT.myTransactions()]);
+    stock = newStock;
+    renderHeader();
+    renderStockHint();
+    renderStats(txs);
+  }
+
+  document.getElementById("printBtn").addEventListener("click", async () => {
+    const qty = Math.max(1, Number(document.getElementById("qty").value || 1));
+    const alertBox = document.getElementById("printAlert");
+    alertBox.classList.remove("show");
+    const printBtn = document.getElementById("printBtn");
+    printBtn.disabled = true;
+    const result = await IBT.printCards({ network: selectedNetwork, denom: selectedDenom, qty });
+    printBtn.disabled = false;
+    if (!result.ok) {
+      alertBox.textContent = result.error;
+      alertBox.classList.add("show");
+      IBT.toast(result.error, true);
+      return;
+    }
+    IBT.toast(`Printed ${qty} × ${selectedNetwork} ₦${selectedDenom} card(s).`);
+    user.wallet = result.wallet;
+    renderRecentCards(result.tx.cards, selectedNetwork, selectedDenom);
+    await refreshAll();
+  });
+
+  document.getElementById("logoutLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await IBT.logout();
+    window.location.href = "login.html";
+  });
+
+  (async () => {
+    user = await IBT.requireAuth({ admin: false });
+    if (!user) return;
+    renderChoices();
+    await refreshAll();
+  })();
+</script>
+</body>
+</html>

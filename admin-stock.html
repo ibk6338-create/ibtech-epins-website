@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stock — IB-TECH ePINs Admin</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="index.html"><img class="brand-mark" src="images/branding/ib-tech-epins-mark.webp" alt="IB-TECH ePINs logo" /><span>IB-TECH ePINs<small>Admin Panel</small></span></a>
+    <nav class="side-nav">
+      <a href="admin-dashboard.html"><span class="ic">▣</span> Overview</a>
+      <a href="admin-stock.html" class="active"><span class="ic">＋</span> Stock</a>
+      <a href="admin-users.html"><span class="ic">◍</span> Users</a>
+      <a href="admin-access.html"><span class="ic">⚿</span> Access Control</a>
+      <a href="admin-transactions.html"><span class="ic">≡</span> Transactions</a>
+      <a href="index.html"><span class="ic">↩</span> View site</a>
+      <a href="#" id="logoutLink"><span class="ic">⏻</span> Logout</a>
+    </nav>
+    <div class="side-foot">ADMIN PANEL · v1.0.0</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Upload / Stock</h1>
+      <div class="user-chip">
+        <span class="av" id="userInitial">?</span>
+        <div>
+          <div style="font-weight:600;font-size:.88rem;" id="userName">—</div>
+          <div style="font-size:.75rem;color:var(--ink-soft);">Administrator</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="panel">
+        <div class="panel-head"><h2>Stock by network &amp; denomination</h2></div>
+        <div class="panel-body pad-0">
+          <table>
+            <thead><tr><th>Network</th><th>₦100</th><th>₦200</th><th>₦500</th><th>₦1000</th><th>₦1500</th></tr></thead>
+            <tbody id="stockBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Upload / generate e-pins</h2></div>
+        <div class="panel-body">
+          <p class="hint" style="margin-top:0;">Generates fresh e-pins straight into the server's stock — swap this for a real supplier import when you have one.</p>
+          <div class="field">
+            <label for="stockNetwork">Network</label>
+            <select id="stockNetwork"></select>
+          </div>
+          <div class="field">
+            <label for="stockDenom">Denomination</label>
+            <select id="stockDenom"></select>
+          </div>
+          <div class="field">
+            <label for="stockQty">Quantity to add</label>
+            <input type="number" id="stockQty" value="50" min="1" max="5000" />
+          </div>
+          <button class="btn btn-primary btn-block" id="stockBtn">Add to stock</button>
+        </div>
+      </div>
+
+      <div class="panel" id="generatedPanel" style="display:none;">
+        <div class="panel-head"><h2>Last generated batch</h2></div>
+        <div class="panel-body">
+          <div class="export-toolbar" id="exportToolbar">
+            <button class="btn btn-outline" id="sendPrinterBtn"><span class="ic">🖨</span>Send to printer</button>
+            <button class="btn btn-outline" id="downloadPdfBtn"><span class="ic">⬇</span>Download as PDF</button>
+            <button class="btn btn-outline" id="saveImageBtn"><span class="ic">🖼</span>Save as image</button>
+            <span class="export-hint">Exports this batch only — the pins shown below.</span>
+          </div>
+          <div id="printableArea">
+            <div class="card-grid" id="generatedCards"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/print-export.js"></script>
+<script>
+  let admin = null;
+  let stock = {};
+  let lastBatchLabel = "";
+
+  function renderGeneratedCards(pins, network, denom) {
+    const panel = document.getElementById("generatedPanel");
+    if (!pins || !pins.length) { panel.style.display = "none"; return; }
+    const logo = IBT.NETWORK_LOGOS && IBT.NETWORK_LOGOS[network];
+    const netClass = network ? `print-card--${network.toLowerCase()}` : "";
+    document.getElementById("generatedCards").innerHTML = pins.map(p => `
+      <div class="print-card ${netClass}" data-watermark="${network}">
+        <div class="print-card__top"><span>${logo ? `<img class="net-logo-sm" src="${logo}" alt="${network} logo" />` : ""}${network}</span><span>₦${denom}</span></div>
+        <div class="print-card__pin">${IBT.escapeHTML(p.pin)}</div>
+        <div class="print-card__serial">Serial ${IBT.escapeHTML(p.serial)}</div>
+      </div>
+    `).join("");
+    lastBatchLabel = `IB-TECH ePINs — ${network} ₦${denom} × ${pins.length} (stock batch)`;
+    panel.style.display = "block";
+  }
+
+  document.getElementById("sendPrinterBtn").addEventListener("click", () => {
+    IBTPrint.printArea("printableArea", lastBatchLabel);
+  });
+  document.getElementById("downloadPdfBtn").addEventListener("click", () => {
+    IBTPrint.downloadPdf("printableArea", lastBatchLabel, `ibtech-stock-epins-${Date.now()}`);
+  });
+  document.getElementById("saveImageBtn").addEventListener("click", () => {
+    IBTPrint.saveAsImage("printableArea", lastBatchLabel, `ibtech-stock-epins-${Date.now()}`);
+  });
+
+  function renderTopbar() {
+    const avEl = document.getElementById("userInitial");
+    if (admin.avatar) {
+      avEl.textContent = "";
+      avEl.style.backgroundImage = `url(${admin.avatar})`;
+      avEl.style.backgroundSize = "cover";
+      avEl.style.backgroundPosition = "center";
+    } else {
+      avEl.style.backgroundImage = "none";
+      avEl.textContent = admin.name.charAt(0).toUpperCase();
+    }
+    document.getElementById("userName").textContent = admin.name;
+  }
+
+  function renderStockTable() {
+    const body = document.getElementById("stockBody");
+    body.innerHTML = IBT.NETWORKS.map(net => {
+      const logo = IBT.NETWORK_LOGOS && IBT.NETWORK_LOGOS[net];
+      return `
+      <tr>
+        <td><b>${logo ? `<img class="net-logo-sm" src="${logo}" alt="${net} logo" />` : ""}${net}</b></td>
+        ${IBT.DENOMS.map(d => `<td class="mono">${IBT.stockCount(stock, net, d)}</td>`).join("")}
+      </tr>
+    `;
+    }).join("");
+  }
+
+  function fillSelects() {
+    const netSel = document.getElementById("stockNetwork");
+    netSel.innerHTML = IBT.NETWORKS.map(n => `<option value="${n}">${n}</option>`).join("");
+    const denomSel = document.getElementById("stockDenom");
+    denomSel.innerHTML = IBT.DENOMS.map(d => `<option value="${d}">₦${d}</option>`).join("");
+  }
+
+  async function refreshAll() {
+    stock = await IBT.getStock();
+    renderStockTable();
+  }
+
+  document.getElementById("stockBtn").addEventListener("click", async () => {
+    const network = document.getElementById("stockNetwork").value;
+    const denom = Number(document.getElementById("stockDenom").value);
+    const qty = Math.max(1, Number(document.getElementById("stockQty").value || 1));
+    const btn = document.getElementById("stockBtn");
+    btn.disabled = true;
+    const result = await IBT.adminAddStock({ network, denom, qty });
+    btn.disabled = false;
+    if (!result.ok) { IBT.toast(result.error, true); return; }
+    IBT.toast(`Added ${qty} ${network} ₦${denom} pin(s) — ${result.stock} now in stock.`);
+    renderGeneratedCards(result.pins, network, denom);
+    await refreshAll();
+  });
+
+  document.getElementById("logoutLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await IBT.logout();
+    window.location.href = "login.html";
+  });
+
+  (async () => {
+    admin = await IBT.requireAuth({ admin: true });
+    if (!admin) return;
+    renderTopbar();
+    fillSelects();
+    await refreshAll();
+  })();
+</script>
+</body>
+</html>

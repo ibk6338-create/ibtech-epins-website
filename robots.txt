@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /user-dashboard.html
+Disallow: /admin-dashboard.html
+
+Sitemap: https://ibtech.com/sitemap.xml

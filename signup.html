@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Get Started — IB-TECH ePINs</title>
+<meta name="description" content="Create your free IB-TECH ePINs portal and start printing MTN, Glo, Airtel and 9mobile recharge cards today." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://ibtech.com/signup.html" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="auth-shell">
+
+  <div class="auth-side">
+    <a class="brand" href="index.html"><img class="brand-mark" src="images/branding/ib-tech-epins-mark.webp" alt="IB-TECH ePINs logo" /><span>IB-TECH ePINs</span></a>
+    <div>
+      <h1 style="color:#fff;font-size:1.9rem;max-width:16ch;">Open your recharge card portal.</h1>
+      <p style="color:#C6CEE0;max-width:34ch;">Free to register. Fund your wallet whenever you're ready to start printing MTN, Glo, Airtel and 9mobile cards.</p>
+    </div>
+    <div class="demo-hint">
+      <b>Note</b><br/>
+      This now creates a real account on the backend in <code>/server</code> — make sure it's running (see server/README.md). Wallets start at ₦0 until funded or credited by an admin.
+    </div>
+  </div>
+
+  <div class="auth-form-col">
+    <div class="auth-card">
+      <h1>Get started</h1>
+      <p class="hint" style="margin-bottom:24px;">Set up your business portal in under a minute.</p>
+
+      <div id="alert" class="alert alert-error"></div>
+
+      <form id="signupForm" novalidate>
+
+        <div class="avatar-upload">
+          <div class="avatar-preview" id="avatarPreview">?</div>
+          <div class="avatar-actions">
+            <div class="hint" style="margin:0 0 2px;">Profile photo (optional)</div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-outline btn-sm" id="uploadPhotoBtn">Upload photo</button>
+              <button type="button" class="btn btn-outline btn-sm" id="snapPhotoBtn">Take photo</button>
+            </div>
+            <button type="button" class="avatar-remove" id="removePhotoBtn" style="display:none;">Remove photo</button>
+          </div>
+          <input type="file" id="uploadPhotoInput" accept="image/*" style="display:none;" />
+          <input type="file" id="snapPhotoInput" accept="image/*" capture="user" style="display:none;" />
+        </div>
+
+        <div class="field">
+          <label for="name">Full name</label>
+          <input type="text" id="name" required placeholder="Ibrahim Kankia" />
+        </div>
+        <div class="field">
+          <label for="business">Business name</label>
+          <input type="text" id="business" placeholder="Kankia Recharge Stores" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="email">Email address</label>
+            <input type="email" id="email" placeholder="you@business.com" />
+          </div>
+          <div class="field">
+            <label for="phone">Phone number</label>
+            <input type="tel" id="phone" placeholder="080..." />
+          </div>
+        </div>
+        <p class="hint" style="margin-top:-10px;">Enter at least one — email or phone number — so you can log back in.</p>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" required minlength="6" placeholder="At least 6 characters" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Create my portal</button>
+      </form>
+
+      <p class="form-note">Already have a portal? <a href="login.html">Login</a></p>
+      <p class="form-note"><a href="index.html">← Back to home</a></p>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  let avatarDataUrl = null;
+  const avatarPreview = document.getElementById("avatarPreview");
+  const removePhotoBtn = document.getElementById("removePhotoBtn");
+
+  // Resizes/crops whatever image the person picks down to a small square
+  // JPEG before it ever leaves the browser, so the upload stays light.
+  function fileToAvatar(file) {
+    return new Promise((resolve, reject) => {
+      if (!file || !file.type.startsWith("image/")) return reject(new Error("Please choose an image file."));
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Could not read that file."));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Could not read that image."));
+        img.onload = () => {
+          const size = 320;
+          const canvas = document.createElement("canvas");
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext("2d");
+          const side = Math.min(img.width, img.height);
+          const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+          ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+          resolve(canvas.toDataURL("image/jpeg", 0.85));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function setAvatarPreview(dataUrl) {
+    avatarDataUrl = dataUrl;
+    if (dataUrl) {
+      avatarPreview.innerHTML = "";
+      avatarPreview.style.backgroundImage = `url(${dataUrl})`;
+      avatarPreview.style.backgroundSize = "cover";
+      avatarPreview.style.backgroundPosition = "center";
+      removePhotoBtn.style.display = "inline";
+    } else {
+      avatarPreview.style.backgroundImage = "none";
+      avatarPreview.textContent = "?";
+      removePhotoBtn.style.display = "none";
+    }
+  }
+
+  async function handlePhotoPick(e) {
+    try {
+      const dataUrl = await fileToAvatar(e.target.files[0]);
+      setAvatarPreview(dataUrl);
+    } catch (err) {
+      IBT.toast(err.message, true);
+    } finally {
+      e.target.value = "";
+    }
+  }
+
+  document.getElementById("uploadPhotoBtn").addEventListener("click", () => document.getElementById("uploadPhotoInput").click());
+  document.getElementById("snapPhotoBtn").addEventListener("click", () => document.getElementById("snapPhotoInput").click());
+  document.getElementById("uploadPhotoInput").addEventListener("change", handlePhotoPick);
+  document.getElementById("snapPhotoInput").addEventListener("change", handlePhotoPick);
+  removePhotoBtn.addEventListener("click", () => setAvatarPreview(null));
+
+  document.getElementById("signupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const alertBox = document.getElementById("alert");
+    alertBox.classList.remove("show");
+    const data = {
+      name: document.getElementById("name").value.trim(),
+      business: document.getElementById("business").value.trim(),
+      email: document.getElementById("email").value.trim(),
+      phone: document.getElementById("phone").value.trim(),
+      password: document.getElementById("password").value
+    };
+    if (!data.name || (!data.email && !data.phone) || data.password.length < 6) {
+      alertBox.textContent = "Enter your name, at least one of email/phone, and a password of at least 6 characters.";
+      alertBox.classList.add("show");
+      return;
+    }
+    const submitBtn = e.target.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    const result = await IBT.signup(data);
+    if (!result.ok) {
+      submitBtn.disabled = false;
+      alertBox.textContent = result.error;
+      alertBox.classList.add("show");
+      return;
+    }
+    if (avatarDataUrl) {
+      const avatarResult = await IBT.updateAvatar(avatarDataUrl);
+      if (!avatarResult.ok) IBT.toast("Account created, but the photo didn't upload — you can add it later.", true);
+    }
+    window.location.href = "user-dashboard.html";
+  });
+</script>
+<script src="js/site.js" defer></script>
+</body>
+</html>

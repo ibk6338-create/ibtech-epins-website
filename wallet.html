@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wallet — IB-TECH ePINs</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="index.html"><img class="brand-mark" src="images/branding/ib-tech-epins-mark.webp" alt="IB-TECH ePINs logo" /><span>IB-TECH ePINs</span></a>
+    <nav class="side-nav">
+      <a href="user-dashboard.html"><span class="ic">▣</span> Print Cards</a>
+      <a href="transactions.html"><span class="ic">≡</span> Transactions</a>
+      <a href="wallet.html" class="active"><span class="ic">◎</span> Wallet</a>
+      <a href="index.html"><span class="ic">↩</span> View site</a>
+      <a href="#" id="logoutLink"><span class="ic">⏻</span> Logout</a>
+    </nav>
+    <div class="side-foot">USER PORTAL · v1.0.0</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Wallet</h1>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="wallet-pill">
+          <span class="dot">₦</span>
+          <span><small>Wallet balance</small><b id="walletValue">₦0</b></span>
+        </div>
+        <div class="user-chip">
+          <span class="av" id="userInitial">?</span>
+          <div>
+            <div style="font-weight:600;font-size:.88rem;" id="userName">—</div>
+            <div style="font-size:.75rem;color:var(--ink-soft);" id="userBiz">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">Wallet balance</div>
+          <div class="value" id="statWallet">₦0</div>
+          <div class="sub">Available to spend</div>
+        </div>
+      </div>
+
+      <div class="panel" id="wallet">
+        <div class="panel-head"><h2>Fund wallet</h2></div>
+        <div class="panel-body">
+          <p class="hint" style="margin-top:0;">Funding goes through Paystack once configured (see PAYMENT_SETUP.md). Until then, ask an admin to credit your wallet from the Admin panel.</p>
+          <div class="choice-row" id="fundChoices">
+            <button class="choice" data-amt="1000">₦1,000</button>
+            <button class="choice" data-amt="5000">₦5,000</button>
+            <button class="choice" data-amt="10000">₦10,000</button>
+            <button class="choice" data-amt="50000">₦50,000</button>
+          </div>
+          <button class="btn btn-outline btn-block" id="fundBtn">Add to wallet</button>
+        </div>
+      </div>
+
+      <div class="panel" id="dva">
+        <div class="panel-head"><h2>Fund by bank transfer</h2></div>
+        <div class="panel-body">
+          <p class="hint" style="margin-top:0;">Get a permanent account number in your name — transfer into it anytime and your wallet is credited automatically.</p>
+          <button class="btn btn-outline btn-block" id="dvaBtn">Get my transfer account</button>
+          <div id="dvaDetails" style="display:none; margin-top:14px; padding:14px; border:1px solid var(--line); border-radius:10px; background:#fff;">
+            <div class="hint" style="margin-bottom:6px;">Account Number</div>
+            <div style="font-family:var(--font-mono); font-size:1.15rem; font-weight:700; letter-spacing:.02em;" id="dvaAccountNumber">—</div>
+            <div class="hint" style="margin-top:12px;margin-bottom:2px;">Bank</div>
+            <div id="dvaBankName">—</div>
+            <div class="hint" style="margin-top:12px;margin-bottom:2px;">Account Name</div>
+            <div id="dvaAccountName">—</div>
+            <button class="btn btn-outline" style="margin-top:14px;" id="dvaCopyBtn">Copy account number</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  let user = null;
+
+  function renderHeader() {
+    document.getElementById("walletValue").textContent = IBT.fmtNaira(user.wallet);
+    document.getElementById("statWallet").textContent = IBT.fmtNaira(user.wallet);
+    const avEl = document.getElementById("userInitial");
+    if (user.avatar) {
+      avEl.textContent = "";
+      avEl.style.backgroundImage = `url(${user.avatar})`;
+      avEl.style.backgroundSize = "cover";
+      avEl.style.backgroundPosition = "center";
+    } else {
+      avEl.style.backgroundImage = "none";
+      avEl.textContent = user.name.charAt(0).toUpperCase();
+    }
+    document.getElementById("userName").textContent = user.name;
+    document.getElementById("userBiz").textContent = user.business;
+  }
+
+  let fundAmount = 1000;
+  document.querySelectorAll("#fundChoices .choice").forEach(btn => {
+    btn.addEventListener("click", () => {
+      fundAmount = Number(btn.dataset.amt);
+      document.querySelectorAll("#fundChoices .choice").forEach(b => b.classList.remove("on"));
+      btn.classList.add("on");
+    });
+  });
+  document.getElementById("fundBtn").addEventListener("click", async () => {
+    if (!IBT.CONFIG.paystackPublicKey) {
+      IBT.toast("Wallet funding isn't configured yet — see PAYMENT_SETUP.md, or ask an admin to credit your wallet.", true);
+      return;
+    }
+    const result = await IBT.payWithPaystack({
+      amount: fundAmount,
+      onSuccess: async () => {
+        IBT.toast(`Payment verified — wallet funded with ${IBT.fmtNaira(fundAmount)}.`);
+        user = await IBT.requireAuth({ admin: false });
+        renderHeader();
+      },
+      onClose: () => IBT.toast("Payment window closed — wallet not funded.", true),
+      onError: (err) => IBT.toast(err || "Payment could not be verified.", true)
+    });
+    if (!result.ok) IBT.toast(result.error, true);
+  });
+
+  function renderDvaAccount(account) {
+    document.getElementById("dvaDetails").style.display = "block";
+    document.getElementById("dvaAccountNumber").textContent = account.accountNumber;
+    document.getElementById("dvaBankName").textContent = account.bankName || "—";
+    document.getElementById("dvaAccountName").textContent = account.accountName || "—";
+    const btn = document.getElementById("dvaBtn");
+    btn.textContent = "Account ready";
+    btn.disabled = true;
+  }
+
+  async function loadDvaStatus() {
+    const r = await IBT.getDedicatedAccount();
+    if (!r.ok) return;
+    if (r.status === "active" && r.account) {
+      renderDvaAccount(r.account);
+    } else if (r.status === "pending") {
+      document.getElementById("dvaBtn").textContent = "Setting up — check back shortly";
+      document.getElementById("dvaBtn").disabled = true;
+    }
+  }
+
+  document.getElementById("dvaBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("dvaBtn");
+    btn.disabled = true;
+    btn.textContent = "Setting up…";
+    const r = await IBT.createDedicatedAccount();
+    if (!r.ok) {
+      btn.disabled = false;
+      btn.textContent = "Get my transfer account";
+      IBT.toast(r.error || "Could not set up a transfer account.", true);
+      return;
+    }
+    if (r.status === "active" && r.account) {
+      renderDvaAccount(r.account);
+      IBT.toast("Your transfer account is ready.");
+    } else {
+      btn.textContent = "Setting up — check back shortly";
+      IBT.toast("Your account is being set up — this can take a moment. Refresh in a bit.");
+    }
+  });
+
+  document.getElementById("dvaCopyBtn").addEventListener("click", () => {
+    const num = document.getElementById("dvaAccountNumber").textContent;
+    navigator.clipboard?.writeText(num);
+    IBT.toast("Account number copied.");
+  });
+
+  document.getElementById("logoutLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await IBT.logout();
+    window.location.href = "login.html";
+  });
+
+  (async () => {
+    user = await IBT.requireAuth({ admin: false });
+    if (!user) return;
+    renderHeader();
+    loadDvaStatus();
+  })();
+</script>
+</body>
+</html>

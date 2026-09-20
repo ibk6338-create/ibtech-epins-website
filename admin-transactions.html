@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Transactions — IB-TECH ePINs Admin</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="index.html"><img class="brand-mark" src="images/branding/ib-tech-epins-mark.webp" alt="IB-TECH ePINs logo" /><span>IB-TECH ePINs<small>Admin Panel</small></span></a>
+    <nav class="side-nav">
+      <a href="admin-dashboard.html"><span class="ic">▣</span> Overview</a>
+      <a href="admin-stock.html"><span class="ic">＋</span> Stock</a>
+      <a href="admin-users.html"><span class="ic">◍</span> Users</a>
+      <a href="admin-access.html"><span class="ic">⚿</span> Access Control</a>
+      <a href="admin-transactions.html" class="active"><span class="ic">≡</span> Transactions</a>
+      <a href="index.html"><span class="ic">↩</span> View site</a>
+      <a href="#" id="logoutLink"><span class="ic">⏻</span> Logout</a>
+    </nav>
+    <div class="side-foot">ADMIN PANEL · v1.0.0</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Transactions</h1>
+      <div class="user-chip">
+        <span class="av" id="userInitial">?</span>
+        <div>
+          <div style="font-weight:600;font-size:.88rem;" id="userName">—</div>
+          <div style="font-size:.75rem;color:var(--ink-soft);">Administrator</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>All transactions</h2>
+          <span class="hint" id="txCount">0 transactions</span>
+        </div>
+        <div class="panel-body pad-0">
+          <table>
+            <thead><tr><th>Date</th><th>User</th><th>Type</th><th>Details</th><th>Amount</th></tr></thead>
+            <tbody id="txBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  let admin = null;
+  let users = [];
+  let txs = [];
+
+  function renderTopbar() {
+    const avEl = document.getElementById("userInitial");
+    if (admin.avatar) {
+      avEl.textContent = "";
+      avEl.style.backgroundImage = `url(${admin.avatar})`;
+      avEl.style.backgroundSize = "cover";
+      avEl.style.backgroundPosition = "center";
+    } else {
+      avEl.style.backgroundImage = "none";
+      avEl.textContent = admin.name.charAt(0).toUpperCase();
+    }
+    document.getElementById("userName").textContent = admin.name;
+  }
+
+  function renderTxTable() {
+    document.getElementById("txCount").textContent = `${txs.length} transaction${txs.length === 1 ? "" : "s"}`;
+    const body = document.getElementById("txBody");
+    if (!txs.length) {
+      body.innerHTML = `<tr class="empty-row"><td colspan="5">No activity on the platform yet.</td></tr>`;
+      return;
+    }
+    const nameOf = (id) => users.find(u => u.id === id)?.name || "—";
+    const TYPE_LABEL = { print: "Print", "wallet-fund": "Wallet funding", "admin-credit": "Manual credit", refund: "Refund", payout: "Payout" };
+    body.innerHTML = txs.map(t => {
+      let details = "—", amount = t.amount || t.total || 0;
+      if (t.type === "print") details = `${t.network} ₦${t.denom} × ${t.qty}`;
+      else if (t.type === "refund") details = t.reason || "—";
+      else if (t.type === "payout") details = `Status: ${t.status || "pending"}`;
+      else if (t.type === "wallet-fund") details = t.via === "webhook" ? "Via Paystack webhook" : "Via checkout";
+      return `<tr><td>${IBT.fmtDate(t.date)}</td><td>${IBT.escapeHTML(nameOf(t.userId))}</td><td>${TYPE_LABEL[t.type] || t.type}</td><td>${IBT.escapeHTML(details)}</td><td class="mono">${IBT.fmtNaira(amount)}</td></tr>`;
+    }).join("");
+  }
+
+  async function refreshAll() {
+    const [newUsers, newTxs] = await Promise.all([IBT.adminUsers(), IBT.allTransactions()]);
+    users = newUsers; txs = newTxs;
+    renderTxTable();
+  }
+
+  document.getElementById("logoutLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await IBT.logout();
+    window.location.href = "login.html";
+  });
+
+  (async () => {
+    admin = await IBT.requireAuth({ admin: true });
+    if (!admin) return;
+    renderTopbar();
+    await refreshAll();
+  })();
+</script>
+</body>
+</html>

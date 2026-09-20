@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Login — IB-TECH ePINs</title>
+<meta name="description" content="Log in to your IB-TECH ePINs portal to print recharge cards, fund your wallet and view your transaction history." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://ibtech.com/login.html" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="auth-shell">
+
+  <div class="auth-side">
+    <a class="brand" href="index.html"><img class="brand-mark" src="images/branding/ib-tech-epins-mark.webp" alt="IB-TECH ePINs logo" /><span>IB-TECH ePINs</span></a>
+    <div>
+      <h1 style="color:#fff;font-size:1.9rem;max-width:14ch;">Welcome back to your printing counter.</h1>
+      <p style="color:#C6CEE0;max-width:34ch;">Log in to check your wallet, print recharge cards, and review your transaction history.</p>
+    </div>
+    <div class="demo-hint">
+      <b>Secure backend</b><br/>
+      Admin credentials are configured through server environment variables. Never use credentials embedded in the website.<br/>
+      No reseller account yet? <a href="signup.html" style="color:#fff;text-decoration:underline;">Sign up</a> — this now talks to the real server in <code>/server</code>, so make sure it's running.
+    </div>
+  </div>
+
+  <div class="auth-form-col">
+    <div class="auth-card">
+      <h1>Log in</h1>
+      <p class="hint" style="margin-bottom:24px;">Enter your details to reach your dashboard.</p>
+
+      <div id="alert" class="alert alert-error"></div>
+
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="identifier">Email or phone number</label>
+          <input type="text" id="identifier" required autocomplete="username" placeholder="you@business.com or 080..." />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" required autocomplete="current-password" placeholder="••••••••" />
+        </div>
+
+        <div class="flex-between checkbox-row">
+          <label style="display:flex;align-items:center;gap:8px;margin:0;">
+            <input type="checkbox" id="rememberMe" />
+            Remember me
+          </label>
+          <a href="forgot-password.html" style="color:var(--signal-dark);font-weight:600;">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Login to your portal</button>
+      </form>
+
+      <p class="form-note">Don't have a portal yet? <a href="signup.html">Get started</a></p>
+      <p class="form-note"><a href="index.html">← Back to home</a></p>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  const identifierInput = document.getElementById("identifier");
+  const rememberBox = document.getElementById("rememberMe");
+  const remembered = IBT.getRememberedIdentifier();
+  if (remembered) {
+    identifierInput.value = remembered;
+    rememberBox.checked = true;
+  }
+
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const identifier = identifierInput.value.trim();
+    const password = document.getElementById("password").value;
+    const alertBox = document.getElementById("alert");
+    alertBox.classList.remove("show");
+    const submitBtn = e.target.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    const result = await IBT.login(identifier, password);
+    submitBtn.disabled = false;
+    if (!result.ok) {
+      alertBox.textContent = result.error;
+      alertBox.classList.add("show");
+      return;
+    }
+    if (rememberBox.checked) IBT.rememberIdentifier(identifier);
+    else IBT.forgetIdentifier();
+    window.location.href = result.user.role !== "user" ? "admin-dashboard.html" : "user-dashboard.html";
+  });
+</script>
+<script src="js/site.js" defer></script>
+</body>
+</html>

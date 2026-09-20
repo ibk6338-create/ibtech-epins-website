@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Transactions — IB-TECH ePINs</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="index.html"><img class="brand-mark" src="images/branding/ib-tech-epins-mark.webp" alt="IB-TECH ePINs logo" /><span>IB-TECH ePINs</span></a>
+    <nav class="side-nav">
+      <a href="user-dashboard.html"><span class="ic">▣</span> Print Cards</a>
+      <a href="transactions.html" class="active"><span class="ic">≡</span> Transactions</a>
+      <a href="wallet.html"><span class="ic">◎</span> Wallet</a>
+      <a href="index.html"><span class="ic">↩</span> View site</a>
+      <a href="#" id="logoutLink"><span class="ic">⏻</span> Logout</a>
+    </nav>
+    <div class="side-foot">USER PORTAL · v1.0.0</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Transaction History</h1>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="wallet-pill">
+          <span class="dot">₦</span>
+          <span><small>Wallet balance</small><b id="walletValue">₦0</b></span>
+        </div>
+        <div class="user-chip">
+          <span class="av" id="userInitial">?</span>
+          <div>
+            <div style="font-weight:600;font-size:.88rem;" id="userName">—</div>
+            <div style="font-size:.75rem;color:var(--ink-soft);" id="userBiz">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="panel" id="history">
+        <div class="panel-head">
+          <h2>Transaction history</h2>
+          <span class="hint" id="historyCount">0 transactions</span>
+        </div>
+
+        <div class="history-toolbar">
+          <div class="field grow">
+            <label for="serialSearch">Search by serial number</label>
+            <input type="text" id="serialSearch" placeholder="e.g. SN000123456789" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="dateFrom">From date</label>
+            <input type="date" id="dateFrom" />
+          </div>
+          <div class="field">
+            <label for="dateTo">To date</label>
+            <input type="date" id="dateTo" />
+          </div>
+          <button class="btn btn-outline btn-sm" id="clearFiltersBtn" type="button" style="margin-bottom:14px;">Clear filters</button>
+        </div>
+
+        <div class="panel-body pad-0">
+          <table>
+            <thead>
+              <tr><th>Date</th><th>Network</th><th>Denom</th><th>Qty</th><th>Total</th><th>Serial number(s)</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  let user = null;
+  let allTxs = [];
+
+  function renderHeader() {
+    document.getElementById("walletValue").textContent = IBT.fmtNaira(user.wallet);
+    const avEl = document.getElementById("userInitial");
+    if (user.avatar) {
+      avEl.textContent = "";
+      avEl.style.backgroundImage = `url(${user.avatar})`;
+      avEl.style.backgroundSize = "cover";
+      avEl.style.backgroundPosition = "center";
+    } else {
+      avEl.style.backgroundImage = "none";
+      avEl.textContent = user.name.charAt(0).toUpperCase();
+    }
+    document.getElementById("userName").textContent = user.name;
+    document.getElementById("userBiz").textContent = user.business;
+  }
+
+  function serialCell(t) {
+    if (t.type !== "print" || !t.cards || !t.cards.length) return "—";
+    const serials = t.cards.map(c => c.serial);
+    if (serials.length === 1) return `<span class="mono">${IBT.escapeHTML(serials[0])}</span>`;
+    return `<span class="mono">${IBT.escapeHTML(serials[0])}</span> <span class="tag-pill" title="${IBT.escapeHTML(serials.join(", "))}">+${serials.length - 1} more</span>`;
+  }
+
+  function renderHistory(list) {
+    document.getElementById("historyCount").textContent = list.length === allTxs.length
+      ? `${allTxs.length} transaction${allTxs.length === 1 ? "" : "s"}`
+      : `${list.length} of ${allTxs.length} transaction${allTxs.length === 1 ? "" : "s"}`;
+
+    const body = document.getElementById("historyBody");
+    if (!allTxs.length) {
+      body.innerHTML = `<tr class="empty-row"><td colspan="8">No cards printed yet — your first batch will show up here.</td></tr>`;
+      return;
+    }
+    if (!list.length) {
+      body.innerHTML = `<tr class="empty-row"><td colspan="8">No transactions match your search or date filter.</td></tr>`;
+      return;
+    }
+    body.innerHTML = list.map(t => {
+      const delBtn = `<button class="btn btn-danger btn-sm" data-delete="${t.id}">Delete</button>`;
+      if (t.type === "print") {
+        return `<tr><td>${IBT.fmtDate(t.date)}</td><td>${t.network}</td><td>₦${t.denom}</td><td>${t.qty}</td><td class="mono">${IBT.fmtNaira(t.total)}</td><td>${serialCell(t)}</td><td><span class="tag-pill ok">Printed</span></td><td>${delBtn}</td></tr>`;
+      }
+      const label = { "wallet-fund": "Wallet funded", "admin-credit": "Wallet credited", "refund": "Refund" }[t.type] || t.type;
+      return `<tr><td>${IBT.fmtDate(t.date)}</td><td colspan="3">${label}${t.reason ? " — " + IBT.escapeHTML(t.reason) : ""}</td><td class="mono">${IBT.fmtNaira(t.amount)}</td><td>—</td><td><span class="tag-pill ok">Done</span></td><td>${delBtn}</td></tr>`;
+    }).join("");
+  }
+
+  function applyFilters() {
+    const q = document.getElementById("serialSearch").value.trim().toLowerCase();
+    const from = document.getElementById("dateFrom").value;
+    const to = document.getElementById("dateTo").value;
+    const fromTs = from ? new Date(from + "T00:00:00").getTime() : null;
+    const toTs = to ? new Date(to + "T23:59:59.999").getTime() : null;
+
+    const filtered = allTxs.filter(t => {
+      if (fromTs !== null && t.date < fromTs) return false;
+      if (toTs !== null && t.date > toTs) return false;
+      if (q) {
+        const serials = (t.cards || []).map(c => c.serial.toLowerCase());
+        if (!serials.some(s => s.includes(q))) return false;
+      }
+      return true;
+    });
+    renderHistory(filtered);
+  }
+
+  document.getElementById("serialSearch").addEventListener("input", applyFilters);
+  document.getElementById("dateFrom").addEventListener("change", applyFilters);
+  document.getElementById("dateTo").addEventListener("change", applyFilters);
+  document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+    document.getElementById("serialSearch").value = "";
+    document.getElementById("dateFrom").value = "";
+    document.getElementById("dateTo").value = "";
+    applyFilters();
+  });
+
+  document.getElementById("historyBody").addEventListener("click", async (e) => {
+    const id = e.target.dataset.delete;
+    if (!id) return;
+    const tx = allTxs.find(t => t.id === id);
+    const what = tx && tx.type === "print" && tx.qty > 1 ? `this batch of ${tx.qty} printed cards` : "this transaction";
+    if (!confirm(`Delete ${what} from your history? This can't be undone.`)) return;
+    e.target.disabled = true;
+    const result = await IBT.deleteTransaction(id);
+    if (!result.ok) {
+      e.target.disabled = false;
+      IBT.toast(result.error, true);
+      return;
+    }
+    allTxs = allTxs.filter(t => t.id !== id);
+    IBT.toast("Transaction deleted.");
+    applyFilters();
+  });
+
+  async function refreshAll() {
+    allTxs = await IBT.myTransactions();
+    renderHeader();
+    applyFilters();
+  }
+
+  document.getElementById("logoutLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await IBT.logout();
+    window.location.href = "login.html";
+  });
+
+  (async () => {
+    user = await IBT.requireAuth({ admin: false });
+    if (!user) return;
+    await refreshAll();
+  })();
+</script>
+</body>
+</html>
